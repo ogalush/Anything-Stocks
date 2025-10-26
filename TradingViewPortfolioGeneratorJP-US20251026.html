@@ -54,18 +54,19 @@ function generateCSV() {
     const sellMonthDay = cols[14];
     const sellPrice = cols[15] ? parseFloat(cols[15].replace(/,/g, '')) : ""; // エグジット価格
 
-    const symbol = `TSE:${code}`; //東証限定。市場毎にコードを取り出すAPI呼び出しがちょっと大変。
+    // 日本株はTSEをつけて東証扱い。
+    // 米国株は銘柄によって市場が変わるためTradingViewの自動判定に頼る。(API利用は難しいのでローカルで完結させる)
+    const symbol = /^[0-9]/.test(code) ? `TSE:${code}` : code;
+    const sides = sideText === "買" ? ["Buy","Sell"] : ["Sell","Buy"];
 
     // --- 買い取引 ---
     if (buyMonthDay && buyPrice) {
-      const side = sideText === "買" ? "Buy" : "Sell";
-      csv += `${symbol},${side},${qty},${buyPrice},0,${formatDate(year, buyMonthDay)} 0:00:00\n`;
+      csv += `${symbol},${sides[0]},${qty},${buyPrice},0,${formatDate(year, buyMonthDay)} 0:00:00\n`;
     }
 
     // --- 売り取引 ---
     if (sellMonthDay && sellPrice) {
-      const side2 = sideText === "買" ? "Sell": "Buy";
-      csv += `${symbol},${side2},${qty},${sellPrice},0,${formatDate(year, sellMonthDay)} 0:00:00\n`;
+      csv += `${symbol},${sides[1]},${qty},${sellPrice},0,${formatDate(year, sellMonthDay)} 0:00:00\n`;
     }
   }
 
