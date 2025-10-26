@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>TradingView CSV Generator</title>
+<style>
+  body { font-family: sans-serif; margin: 30px; background: #f8f9fa; }
+  textarea { width: 100%; height: 150px; font-family: monospace; padding: 10px; }
+  button { margin-top: 10px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+  pre { background: #fff; padding: 10px; border: 1px solid #ccc; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h2>TradingView用ポートフォリオCSVジェネレーター</h2>
+
+<label>実績管理表のC列-S列を貼り付けてください：</label><br>
+<textarea id="inputData" placeholder="5803	フジクラ	信用	P	買	60	10000	9500	30000	50000	OK	8月6日	10000	600000	10月2日	14000	840000"></textarea><br>
+
+<button onclick="generateCSV()">CSV確認</button>
+<button id="downloadBtn">CSVダウンロード</button>
+
+<h3>出力結果：</h3>
+<pre id="output"></pre>
+
+<script>
+// CSV文字列
+let csvContent = "";
+
+// CSV確認
+function generateCSV() {
+  const year = new Date().getFullYear(); // ひとまず当年。年跨ぎを考慮しない。
+  const input = document.getElementById("inputData").value.trim();
+  if (!year || !input) {
+    alert("売買実績を貼り付けてください。");
+    return;
+  }
+
+  const rows = input.split(/\r?\n/);
+
+  //title
+  let csv = "Symbol,Side,Qty,Fill Price,Commission,Closing Time\n";
+
+  for (const row of rows) {
+    if (!row.trim()) continue;
+    const cols = row.split(/\t/); // タブ区切り
+    //console.log("cols:", cols); // for debug
+
+    const code = cols[0];     // 銘柄コード
+    const sideText = cols[4]; // 買 or 売
+    const qty = cols[5] ? parseFloat(cols[5].replace(/,/g, '')) : ""; //枚数, 桁区切りのカンマがあれば除去してinputする
+    const buyMonthDay = cols[11];
+    const buyPrice = cols[12] ? parseFloat(cols[12].replace(/,/g, '')) : ""; // エントリー価格
+    const sellMonthDay = cols[14];
+    const sellPrice = cols[15] ? parseFloat(cols[15].replace(/,/g, '')) : ""; // エグジット価格
+
+    const symbol = `TSE:${code}`; //東証限定。市場毎にコードを取り出すAPI呼び出しがちょっと大変。
+
+    // --- 買い取引 ---
+    if (buyMonthDay && buyPrice) {
+      const side = sideText === "買" ? "Buy" : "Sell";
+      csv += `${symbol},${side},${qty},${buyPrice},0,${formatDate(year, buyMonthDay)} 0:00:00\n`;
+    }
+
+    // --- 売り取引 ---
+    if (sellMonthDay && sellPrice) {
+      const side2 = sideText === "買" ? "Sell": "Buy";
+      csv += `${symbol},${side2},${qty},${sellPrice},0,${formatDate(year, sellMonthDay)} 0:00:00\n`;
+    }
+  }
+
+  csvContent = csv; //ダウンロード用に保持
+  document.getElementById("output").textContent = csv;
+
+  return true;
+}
+
+
+// CSVダウンロード
+document.getElementById("downloadBtn").addEventListener("click", function() {
+  if (!csvContent) {
+    // 無い場合は用意する
+    const success = generateCSV();
+    if (!success) return; // true以外ならダウンロードせずに中断
+  }
+
+  //ダウンロード
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `TradingView_trades.csv`;
+  document.body.appendChild(a); // Firefox対応
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+function formatDate(year, jpDate) {
+  // "8月6日" → "2025-08-06"
+  const m = jpDate.match(/(\d+)月(\d+)日/);
+  if (!m) return "";
+  const month = m[1].padStart(2, "0");
+  const day = m[2].padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+</script>
+
+</body>
+</html>
